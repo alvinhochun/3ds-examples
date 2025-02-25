@@ -4,12 +4,22 @@
 #include <citro2d.h>
 
 #include <assert.h>
+#include <malloc.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-#define MAX_SPRITES   768
+#ifdef TRACY_ENABLE
+#include <tracy/Tracy.hpp>
+#endif
+
+#define SOC_ALIGN       0x1000
+#define SOC_BUFFERSIZE  0x100000
+
+static u32 *SOC_buffer = NULL;
+
+#define MAX_SPRITES   (768 * 2)
 #define SCREEN_WIDTH  400
 #define SCREEN_HEIGHT 240
 
@@ -23,10 +33,14 @@ typedef struct
 static C2D_SpriteSheet spriteSheet;
 static Sprite sprites[MAX_SPRITES];
 static size_t numSprites = MAX_SPRITES/2;
+static bool useNew3dsSpeedup = false;
 
 //---------------------------------------------------------------------------------
 static void initSprites() {
 //---------------------------------------------------------------------------------
+#ifdef TRACY_ENABLE
+	ZoneScoped;
+#endif
 	size_t numImages = C2D_SpriteSheetCount(spriteSheet);
 	srand(time(NULL));
 
@@ -47,6 +61,9 @@ static void initSprites() {
 //---------------------------------------------------------------------------------
 static void moveSprites() {
 //---------------------------------------------------------------------------------
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif
 	for (size_t i = 0; i < numSprites; i++)
 	{
 		Sprite* sprite = &sprites[i];
@@ -70,6 +87,30 @@ int main(int argc, char* argv[]) {
 	// Init libs
 	romfsInit();
 	gfxInitDefault();
+
+	SOC_buffer = (u32*)memalign(SOC_ALIGN, SOC_BUFFERSIZE);
+
+	int ret;
+	if ((ret = socInit(SOC_buffer, SOC_BUFFERSIZE)) != 0) {
+		consoleInit(GFX_BOTTOM, NULL);
+		printf(CONSOLE_RED);
+    	printf("socInit: 0x%08X\n", (unsigned int)ret);
+		printf(CONSOLE_RESET);
+		printf("\nPress B to exit\n");
+	
+		while (aptMainLoop()) {
+			gspWaitForVBlank();
+			hidScanInput();
+
+			u32 kDown = hidKeysDown();
+			if (kDown & KEY_B) exit(0);
+		}
+	}
+
+	#ifdef TRACY_ENABLE
+		tracy::StartupProfiler();
+	#endif
+
 	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
 	C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
 	C2D_Prepare();
@@ -91,12 +132,20 @@ int main(int argc, char* argv[]) {
 	// Main loop
 	while (aptMainLoop())
 	{
+#ifdef TRACY_ENABLE
+		ZoneScopedN("Main loop");
+#endif
 		hidScanInput();
 
 		// Respond to user input
 		u32 kDown = hidKeysDown();
 		if (kDown & KEY_START)
 			break; // break in order to return to hbmenu
+
+		if (kDown & KEY_SELECT) {
+			useNew3dsSpeedup = !useNew3dsSpeedup;
+			osSetSpeedupEnable(useNew3dsSpeedup);
+		}
 
 		u32 kHeld = hidKeysHeld();
 		if ((kHeld & KEY_UP) && numSprites < MAX_SPRITES)
@@ -110,23 +159,58 @@ int main(int argc, char* argv[]) {
 		printf("\x1b[2;1HCPU:     %6.2f%%\x1b[K", C3D_GetProcessingTime()*6.0f);
 		printf("\x1b[3;1HGPU:     %6.2f%%\x1b[K", C3D_GetDrawingTime()*6.0f);
 		printf("\x1b[4;1HCmdBuf:  %6.2f%%\x1b[K", C3D_GetCmdBufUsage()*100.0f);
+		printf("\x1b[5;1HNew3DS speedup is %s\x1b[K", useNew3dsSpeedup ? "enabled" : "disabled");
+
+#ifdef TRACY_ENABLE
+		TracyPlot("Sprites", (int64_t)numSprites);
+		TracyPlot("CPU", C3D_GetProcessingTime()*6.0f);
+		TracyPlot("GPU", C3D_GetDrawingTime()*6.0f);
+		TracyPlot("CmdBuf", C3D_GetCmdBufUsage()*100.0f);
+#endif
 
 		// Render the scene
-		C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-		C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f));
-		C2D_SceneBegin(top);
-		for (size_t i = 0; i < numSprites; i ++)
-			C2D_DrawSprite(&sprites[i].spr);
-		C3D_FrameEnd(0);
+		{
+#ifdef TRACY_ENABLE
+			ZoneScopedN("C3D_FrameSync");
+#endif
+			C3D_FrameSync();
+		}
+		{
+#ifdef TRACY_ENABLE
+			ZoneScopedN("C3D_FrameBegin");
+#endif
+			C3D_FrameBegin(0);
+		}
+		{
+#ifdef TRACY_ENABLE
+			ZoneScopedN("Render");
+#endif
+			C2D_TargetClear(top, C2D_Color32f(0.0f, 0.0f, 0.0f, 1.0f));
+			C2D_SceneBegin(top);
+			for (size_t i = 0; i < numSprites; i ++)
+				C2D_DrawSprite(&sprites[i].spr);
+			C3D_FrameEnd(0);
+		}
+
+#ifdef TRACY_ENABLE
+		FrameMark;
+#endif
 	}
 
 	// Delete graphics
 	C2D_SpriteSheetFree(spriteSheet);
+
+	#ifdef TRACY_ENABLE
+		tracy::ShutdownProfiler();
+	#endif
 
 	// Deinit libs
 	C2D_Fini();
 	C3D_Fini();
 	gfxExit();
 	romfsExit();
+
+	socExit();
+
 	return 0;
 }

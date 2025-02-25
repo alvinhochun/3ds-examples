@@ -12,7 +12,9 @@ all: examples
 #---------------------------------------------------------------------------------
 examples:
 #---------------------------------------------------------------------------------
-	@for i in $(MAKEFILES); do $(MAKE) -C `dirname $$i` || exit 1; done;
+	@$(MAKE) -C external
+	@$(MAKE) -C graphics/gpu/gpusprites
+#	@for i in $(MAKEFILES); do $(MAKE) -C `dirname $$i` || exit 1; done;
 
 #---------------------------------------------------------------------------------
 clean:
@@ -20,8 +22,9 @@ clean:
 	@rm -fr bin
 	@rm -f *.bz2
 	@for i in $(MAKEFILES); do $(MAKE) -C `dirname $$i` clean || exit 1; done;
+	@$(MAKE) -C external clean
 
 #---------------------------------------------------------------------------------
-dist: clean
+#dist: clean
 #---------------------------------------------------------------------------------
-	@tar -cvjf 3ds-examples-$(DATESTRING).tar.bz2 *
+#	@tar -cvjf 3ds-examples-$(DATESTRING).tar.bz2 *

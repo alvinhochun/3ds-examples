@@ -48,6 +48,11 @@ ARCH	:=	-march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 
 CFLAGS	:=	-g -Wall -O2 -mword-relocations \
 			-ffunction-sections \
+			-DTRACY_ENABLE \
+			-DTRACY_DELAYED_INIT \
+			-DTRACY_MANUAL_LIFETIME \
+			-DTRACY_NO_FRAME_IMAGE \
+			-DTRACY_SYMBOL_OFFLINE_RESOLVE \
 			$(ARCH)
 
 CFLAGS	+=	$(INCLUDE) -D__3DS__
@@ -57,13 +62,13 @@ CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= -lcitro2d -lcitro3d -lctru -lm
+LIBS	:= -Wl,--start-group -lcitro2d -lcitro3d -lctru-prof -lTracyClient -lm -Wl,--end-group
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
 # include and lib
 #---------------------------------------------------------------------------------
-LIBDIRS	:= $(CTRULIB)
+LIBDIRS	:= $(realpath ../../../external/libctru/libctru) $(realpath ../../../external/tracy-install) $(CTRULIB)
 
 
 #---------------------------------------------------------------------------------

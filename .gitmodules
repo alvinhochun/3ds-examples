@@ -1,0 +1,8 @@
+[submodule "external/libctru"]
+	path = external/libctru
+	url = https://github.com/alvinhochun/libctru.git
+	branch = profiling
+[submodule "external/tracy"]
+	path = external/tracy
+	url = https://github.com/alvinhochun/tracy.git
+	branch = n3ds-v0.11
