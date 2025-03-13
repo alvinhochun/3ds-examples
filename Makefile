@@ -1,6 +1,6 @@
 DATESTRING	:=	$(shell date +%Y)$(shell date +%m)$(shell date +%d)
 
-MAKEFILES := $(shell find . -mindepth 2 -name Makefile)
+MAKEFILES := $(shell find . -mindepth 2 -name Makefile -not -path './external/*')
 
 #---------------------------------------------------------------------------------
 all: examples

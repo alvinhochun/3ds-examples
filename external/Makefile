@@ -5,6 +5,7 @@ all: libctru tracy
 libctru: libctru/libctru/Makefile libctru/libctru/lib/libctru-prof.a
 
 
+.PHONY: libctru/libctru/lib/libctru-prof.a
 libctru/libctru/lib/libctru-prof.a:
 	@$(MAKE) -C libctru/libctru lib/libctru-prof.a
 
